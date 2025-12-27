@@ -1,4 +1,8 @@
 # BHS Fault Detection System 🔍
+![Status](https://img.shields.io/badge/Status-In_Development-yellow)
+![MATLAB](https://img.shields.io/badge/MATLAB-R2024a-orange)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Progress](https://img.shields.io/badge/Progress-20%25-blue)
 
 Sistema di rilevamento guasti per sensori Baggage Handling System (BHS) utilizzando MATLAB/Simulink.
 
