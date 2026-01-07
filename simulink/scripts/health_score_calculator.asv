@@ -12,83 +12,191 @@ function [health_score, status, alarm_details] = health_score_calculator(signal,
     %   status - 0=OK (green), 1=WARNING (yellow), 2=FAULT (red)
     %   alarm_details - Struct with individual alarm flags
     %
-    % Author: Santino Ventre
-    % Date: 2025-12-27
-
-    % load detection algorithms
-    persistent algorithms_loaded;
-    if isempty(algoritmhs_loaded)
+    % Version 3.0 - Fixed for all sensor types with proper state handling
+    %
+    % Author:  Santino Ventre
+    % Date: 2025-01-07
+    
+    persistent algorithms_loaded warm_up_counter;
+    if isempty(algorithms_loaded)
         algorithms_loaded = true;
+        warm_up_counter = 0;
     end
-
+    
     % Initialize alarm details
     alarm_details = struct();
-    alarm_details.treshold = 0;
+    alarm_details.threshold = 0;
     alarm_details.drift = 0;
     alarm_details.noise = 0;
     alarm_details.stuck = 0;
     alarm_details.data_loss = 0;
     alarm_details.rate = 0;
-
-    % Get sensors parameters
+    
+    % Warm-up period (300 samples = 3 seconds for better buffer fill)
+    warm_up_counter = warm_up_counter + 1;
+    if warm_up_counter < 300
+        health_score = 100;
+        status = 0;
+        return;
+    end
+    
+    %% SPECIAL HANDLING:  Inactive/Zero states (NORMAL conditions)
+    
+    % BARCODE:  zero = no baggage detected (normal)
+    if strcmpi(sensor_type, 'barcode')
+        if abs(signal) < 0.1
+            health_score = 100;
+            status = 0;
+            return;
+        end
+    end
+    
+    % POSITION: zero = no baggage on belt (normal)
+    if strcmpi(sensor_type, 'position')
+        if abs(signal) < 0.1
+            health_score = 100;
+            status = 0;
+            return;
+        end
+    end
+    
+    % WEIGHT: zero = no baggage (normal)
+    if strcmpi(sensor_type, 'weight')
+        if abs(signal) < 0.5
+            health_score = 100;
+            status = 0;
+            return;
+        end
+    end
+    
+    % DISTANCE: near-zero after reset is normal behavior
+    if strcmpi(sensor_type, 'distance')
+        if abs(signal) < 0.5
+            % Just reset, normal behavior
+            health_score = 100;
+            status = 0;
+            return;
+        end
+    end
+    
+    %% Get sensor-specific parameters
     switch lower(sensor_type)
         case 'barcode'
-            mean_expected = 0.5; % Average between 0 and 1
-            std_expected = 0.5;
-            drift_treshold = 0.3;
-            max_variance = 0.5;
-            min_change = 0.1;
-            max_rate = 10; % Max 10 changes per second
-
+            % Digital pulse sensor (active state only)
+            mean_expected = 1.0;
+            std_expected = 0.1;
+            drift_threshold = 0.5;
+            max_variance = 0.2;
+            min_change = 0.05;  % Very small changes OK
+            max_rate = 1000;    % Instant transitions are normal
+            
         case 'weight'
+            % Analog sensor with intermittent activation
             mean_expected = sensor_params.weight_mean;
-            std_expected = sensor_params.weight_std
-            drift_treshold = 5.0; % 5kg drift
-            max_variance = sensor_params.weight_std^2*4; % 4x normal variance
-            min_change = 1.0; % Must vary by atleast 1kg
-            max_rate = 50; % Max 50 kg/s change
-
+            std_expected = sensor_params.weight_std;
+            drift_threshold = 12.0;      % Very tolerant to drift
+            max_variance = sensor_params.weight_std^2 * 50;  % High variance tolerance
+            min_change = 0.3;            % Small variations OK (noise)
+            max_rate = 500;              % Fast transitions 0→25 kg are normal
+            
         case 'position'
-            mean_expected = 0.5;
-            std_expected = 0.5;
-            drift_threshold = 0.3;
-            max_variance = 0.5;
-            min_change = 0.1;
-            max_rate = 10;
-
+            % Digital pulse sensor (similar to barcode)
+            mean_expected = 1.0;
+            std_expected = 0.1;
+            drift_threshold = 0.5;
+            max_variance = 0.2;
+            min_change = 0.05;  % Very small changes OK
+            max_rate = 1000;    % Instant transitions normal
+            
         case 'speed'
+            % Continuous analog sensor with gaussian noise
+            % Range: 1.35-1.65 m/s (1.5 ± 0.15 = ±3σ)
             mean_expected = sensor_params.belt_speed_nominal;
             std_expected = sensor_params.speed_noise_std;
-            drift_treshold = 0.5; % 0.5 m/s drift;
-            max_variance = sensor_params.speed_noise_std^2 * 100; % 100x normal
-            min_change = 0.01; % Must vary by at least 0.01 m/s
-            max_rate = 5; % Max 5 m/s^2 acceleration
-
+            
+            % Very tolerant thresholds for continuous noisy signal
+            drift_threshold = 1.0;       % Allow ±1 m/s deviation from mean
+            max_variance = sensor_params.speed_noise_std^2 * 500;  % 500x nominal variance
+            min_change = 0.0001;         % Any tiny movement OK (not stuck)
+            max_rate = 20;               // Allow up to 20 m/s² acceleration
+            
         case 'distance'
+            % Integrator with periodic reset (0→10m cycle)
             mean_expected = sensor_params.belt_length / 2;
-            std_expected = sensor_params.belt_lenght / 4;
-            drift_treshold = 2.0; % 2 meters
-            max_variance = 25;
-            min_change = 0.1;
-            max_rate = 10; % Max 10 m/s
-
+            std_expected = sensor_params.belt_length / 3;  % Wide std
+            drift_threshold = 4.0;       % Allow large deviations
+            max_variance = 50;           % High variance (ramp signal)
+            min_change = 0.05;           % Always changing (integrator)
+            max_rate = 50;               % Reset 10→0 in 0.01s = 1000 m/s!  Must allow
+            
         otherwise
-            % Default parameters
             mean_expected = 0;
             std_expected = 1;
-            dirft_treshold = 3;
+            drift_threshold = 3;
             max_variance = 2;
             min_change = 0.1;
             max_rate = 100;
     end
     
-    % Run all detection algorithms
-    alarm_details.threshold = threshold_detector(signal, mean_expected, std_expected, 3);
-    alarm_details.drift = drift_detector(signal, 500, drift_treshold); %5s window
-    alarm_details.noise = variance_monitor(signal, 500, max_variance);
-    alarm_details.stuck = stuck_detector(signal, 1000, min_change); % 10s window
-    alarm_details.data_loss = data_loss_detector(signal, 5.0, sample_time); % 5s timeout
+    %% Run detection algorithms with sensor-specific logic
     
-            
-
-            
+    % THRESHOLD: Disable for distance (ramp 0-10 always "in range")
+    if strcmpi(sensor_type, 'distance')
+        alarm_details.threshold = 0;  % Distance ramps through full range normally
+    else
+        alarm_details.threshold = threshold_detector(signal, mean_expected, std_expected, 3.0);
+    end
+    
+    % DRIFT:  Disable for digital pulse sensors and distance (ramp)
+    if strcmpi(sensor_type, 'barcode') || strcmpi(sensor_type, 'position') || strcmpi(sensor_type, 'distance')
+        alarm_details.drift = 0;  % Not applicable
+    else
+        alarm_details. drift = drift_detector(signal, 500, drift_threshold);
+    end
+    
+    % NOISE: Run for all except digital pulses when =1 (constant is normal)
+    if (strcmpi(sensor_type, 'barcode') || strcmpi(sensor_type, 'position')) && abs(signal - 1.0) < 0.1
+        alarm_details.noise = 0;  % Constant 1.0 is normal for pulse
+    else
+        alarm_details. noise = variance_monitor(signal, 500, max_variance);
+    end
+    
+    % STUCK:  Disable for distance (always changing by design)
+    if strcmpi(sensor_type, 'distance')
+        alarm_details.stuck = 0;  % Integrator always moves
+    elseif (strcmpi(sensor_type, 'barcode') || strcmpi(sensor_type, 'position')) && abs(signal - 1.0) < 0.1
+        alarm_details.stuck = 0;  % Pulse at 1.0 for several seconds is normal
+    else
+        alarm_details.stuck = stuck_detector(signal, 1000, min_change);
+    end
+    
+    % DATA LOSS: Run for all
+    alarm_details.data_loss = data_loss_detector(signal, 5.0, sample_time);
+    
+    % RATE OF CHANGE: Disable for digital pulses, distance reset, weight transitions
+    if strcmpi(sensor_type, 'barcode') || strcmpi(sensor_type, 'position')
+        alarm_details.rate = 0;  % Instant 0→1→0 transitions are normal
+    elseif strcmpi(sensor_type, 'distance')
+        alarm_details.rate = 0;  % Reset 10→0 is normal behavior
+    elseif strcmpi(sensor_type, 'weight')
+        alarm_details.rate = 0;  % Fast 0→25→0 transitions are normal
+    else
+        alarm_details.rate = rate_of_change_detector(signal, max_rate, sample_time);
+    end
+    
+    %% Calculate health score
+    total_alarms = alarm_details.threshold + alarm_details.drift + ...  
+                   alarm_details.noise + alarm_details.stuck + ...  
+                   alarm_details.data_loss + alarm_details. rate;
+    
+    health_score = max(0, 100 - (total_alarms * 17));
+    
+    %% Determine status
+    if health_score >= 90
+        status = 0;  % OK (green)
+    elseif health_score >= 70
+        status = 1;  % WARNING (yellow)
+    else
+        status = 2;  % FAULT (red)
+    end
+end
