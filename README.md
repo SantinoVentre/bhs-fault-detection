@@ -8,7 +8,7 @@ Sistema di rilevamento guasti per sensori Baggage Handling System (BHS) utilizza
 
 ## 📋 Descrizione
 
-Progetto sviluppato per portfolio **Leonardo US Automation** - Ruolo Verification & Validation Engineering.
+Progetto sviluppato per portfolio Ruolo Verification & Validation Engineering.
 
 Il sistema simula una rete di sensori BHS e implementa algoritmi di fault detection per identificare: 
 - Drift (deriva calibrazione)
@@ -120,35 +120,6 @@ weight_mean = 25;            % [kg] Peso medio
 weight_std = 8;              % [kg] Deviazione standard
 ```
 
-## 📅 Roadmap Sviluppo
-
-### ✅ Fase 1: Setup (Giorni 1-2)
-- [x] Modello Simulink base
-- [x] 5 sensori funzionanti
-- [x] Visualizzazione Scope/Display
-- [x] Script setup parametri
-
-### 🔄 Fase 2: Fault Injection (Giorni 3-4) - **IN CORSO**
-- [ ] Implementazione 4 tipi guasti
-- [ ] MATLAB Function fault_injector
-- [ ] Controllo guasti da script
-- [ ] Visualizzazione before/after
-
-### ⏳ Fase 3: Detection (Giorni 5-6)
-- [ ] 5 algoritmi detection
-- [ ] Health score calculator
-- [ ] Sistema allarmi
-
-### ⏳ Fase 4: Dashboard (Giorno 7)
-- [ ] Dashboard Simulink professionale
-- [ ] Test scenarios
-- [ ] Data logging
-
-### ⏳ Fase 5: C++ Integration (Giorni 8-10)
-- [ ] Data reader C++
-- [ ] ImGui dashboard
-- [ ] Report generator
-
 ## 🛠️ Tecnologie
 
 ![MATLAB](https://img.shields.io/badge/MATLAB-R2024a-orange?logo=mathworks)
@@ -161,21 +132,15 @@ weight_std = 8;              % [kg] Deviazione standard
 - **C++17**: Integrazione e dashboard (futuro)
 - **ImGui**: GUI real-time (futuro)
 
-## 📚 Riferimenti
-
-- [Leonardo US Automation](https://www.leonardocompany.com/)
-- BHS Standards:   IATA RP 1745
-- Fault Detection:   ISO 13849-1
 
 ## 👤 Autore
 
-**Santino Ventresto**  
-Portfolio project per candidatura Leonardo US Automation  
-Ruolo: Verification & Validation Engineering  
+**Santino Ventre**  
+Portfolio project per Ruolo: Verification & Validation Engineering  
 
-📧 [tua-email@example.com]  
-🔗 [LinkedIn](https://linkedin.com/in/tuo-profilo)  
-🐙 [GitHub](https://github.com/SantinoVentres)
+📧 [santino.ventre@gmail.com]  
+🔗 [LinkedIn](https://linkedin.com/in/santino-ventre)  
+🐙 [GitHub](https://github.com/SantinoVentre)
 
 ## 📄 Licenza
 
